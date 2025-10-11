@@ -1,21 +1,9 @@
 #!/usr/bin/env python3
 """
-Dataset information summary for aircraft_dataset labels CSV.
-
-Outputs to console (and optionally to a text file via --out):
-- Columns and dtypes
-- Row count (boxes) and unique image count (overall and per split)
-- Splits present and counts
-- Number of classes and the class list
-- Boxes per class (descending)
-- Unique images per class (descending)
-- Image width/height summary stats
-- Approximate DataFrame memory usage
-
 Usage:
   python dataset_info.py \
-    --csv "/Users/f1ol/workspace/ukma/NNs/LAB1/aircraft_dataset/labels_with_split.csv" \
-    --out "/Users/f1ol/workspace/ukma/NNs/LAB1/eda_outputs/dataset_info.txt"
+    --csv "aircraft_dataset/labels_with_split.csv" \
+    --out "eda_outputs/dataset_info.txt"
 """
 
 import argparse
@@ -31,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--csv",
         type=str,
-        default="/Users/f1ol/workspace/ukma/NNs/LAB1/aircraft_dataset/labels_with_split.csv",
+        default="aircraft_dataset/labels_with_split.csv",
         help="Path to labels_with_split.csv",
     )
     parser.add_argument(
@@ -77,14 +65,12 @@ def print_header(title: str) -> None:
 
 
 def summarize(df: pd.DataFrame, max_show_classes: int = 200) -> None:
-    # Columns and dtypes
     print_header("Columns and dtypes:")
     for col in df.columns:
         dtype_str = str(df[col].dtype)
         print(f"- {col}: {dtype_str}")
     print()
 
-    # Basic counts
     num_rows = len(df)
     num_unique_images = df["filename"].nunique(dropna=True)
     print_header("Row and image counts:")
@@ -92,13 +78,12 @@ def summarize(df: pd.DataFrame, max_show_classes: int = 200) -> None:
     print(f"- unique images (overall): {num_unique_images}")
     print()
 
-    # Splits present
     print_header("Splits and counts:")
     split_counts = df["split"].value_counts(dropna=False).sort_index()
     for split_name, count in split_counts.items():
         split_name_str = "<NA>" if pd.isna(split_name) else str(split_name)
         print(f"- {split_name_str}: rows={count}")
-    # Unique images per split
+    
     if "split" in df.columns:
         print("\nUnique images per split:")
         uniq_per_split = (
@@ -109,7 +94,6 @@ def summarize(df: pd.DataFrame, max_show_classes: int = 200) -> None:
             print(f"- {split_name_str}: unique_images={count}")
     print()
 
-    # Classes present
     classes = sorted([c for c in df["class"].dropna().unique().tolist()])
     print_header(f"Classes present ( {len(classes)} ):")
     to_show = classes[:max_show_classes]
@@ -118,7 +102,6 @@ def summarize(df: pd.DataFrame, max_show_classes: int = 200) -> None:
         print(f"... and {len(classes) - len(to_show)} more")
     print()
 
-    # Boxes per class
     print_header("Boxes per class (desc):")
     boxes_per_class = (
         df.groupby("class").size().sort_values(ascending=False)
@@ -127,7 +110,6 @@ def summarize(df: pd.DataFrame, max_show_classes: int = 200) -> None:
         print(f"- {cls}: {count}")
     print()
 
-    # Unique images per class
     print_header("Unique images per class (desc):")
     uniq_imgs_per_class = (
         df.groupby("class")["filename"].nunique(dropna=True).sort_values(ascending=False)
@@ -136,7 +118,6 @@ def summarize(df: pd.DataFrame, max_show_classes: int = 200) -> None:
         print(f"- {cls}: {count}")
     print()
 
-    # Image width/height summary
     print_header("Image size summary (width/height):")
     for col in ["width", "height"]:
         if col in df.columns:
@@ -148,7 +129,6 @@ def summarize(df: pd.DataFrame, max_show_classes: int = 200) -> None:
             print(f"- {col}: min={min_v}, median={p50_v}, p90={p90_v}, max={max_v}")
     print()
 
-    # Memory usage
     mem_bytes = int(df.memory_usage(deep=True).sum())
     print_header("Memory usage of DataFrame:")
     print(f"- {bytes_to_mb(mem_bytes):.2f} MB")

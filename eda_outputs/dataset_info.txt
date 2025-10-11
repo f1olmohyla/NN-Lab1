@@ -1,4 +1,3 @@
-Writing summary to: /Users/f1ol/workspace/ukma/NNs/LAB1/eda_outputs/dataset_info.txt
 Reading labels...
 
 Columns and dtypes:
