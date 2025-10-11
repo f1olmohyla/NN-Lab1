@@ -1,3 +1,6 @@
+Writing summary to: /Users/f1ol/workspace/ukma/NNs/LAB1/eda_outputs/dataset_info.txt
+Reading labels...
+
 Columns and dtypes:
 - filename: string
 - width: Int64
@@ -9,10 +12,121 @@ Columns and dtypes:
 - ymax: Int64
 - split: string
 
+Row and image counts:
+- rows (boxes): 39043
+- unique images (overall): 21950
+
+Splits and counts:
+- test: rows=2632
+- train: rows=29347
+- validation: rows=7064
+
+Unique images per split:
+- test: unique_images=1467
+- train: unique_images=16457
+- validation: unique_images=4026
+
 Classes present ( 95 ):
 A10, A400M, AG600, AH64, AKINCI, AV8B, An124, An22, An225, An72, B1, B2, B21, B52, Be200, C1, C130, C17, C2, C390, C5, CH47, CH53, CL415, E2, E7, EF2000, EMB314, F117, F14, F15, F16, F18, F2, F22, F35, F4, FCK1, H6, Il76, J10, J20, J35, J36, J50, JAS39, JF17, JH7, KAAN, KC135, KF21, KJ600, Ka27, Ka52, MQ25, MQ9, Mi24, Mi26, Mi28, Mi8, Mig29, Mig31, Mirage2000, P3, RQ4, Rafale, SR71, Su24, Su25, Su34, Su47, Su57, TB001, TB2, Tejas, Tornado, Tu160, Tu22M, Tu95, U2, UH60, US2, V22, V280, Vulcan, WZ10, WZ7, WZ9, X29, X32, XB70, Y20, YF23, Z10, Z19
 
-Unique images per class:
+Boxes per class (desc):
+- F16: 1934
+- F18: 1709
+- C130: 1572
+- F15: 1532
+- F35: 1508
+- V22: 908
+- J20: 838
+- C2: 830
+- EF2000: 826
+- Rafale: 798
+- J10: 760
+- A10: 751
+- C17: 741
+- F4: 719
+- F22: 700
+- US2: 660
+- B1: 650
+- B52: 619
+- JAS39: 603
+- B2: 565
+- F14: 545
+- A400M: 530
+- Su34: 529
+- AH64: 518
+- P3: 515
+- Tornado: 487
+- Su24: 487
+- Mig31: 481
+- E2: 475
+- H6: 468
+- Mirage2000: 457
+- AV8B: 457
+- Su25: 454
+- Tu22M: 441
+- KC135: 440
+- Tu95: 436
+- TB2: 428
+- Tu160: 427
+- Su57: 420
+- CL415: 407
+- Vulcan: 404
+- C5: 398
+- Mig29: 380
+- F117: 377
+- Mi24: 369
+- MQ9: 366
+- CH47: 361
+- Y20: 343
+- UH60: 339
+- U2: 328
+- Mi8: 308
+- RQ4: 305
+- Be200: 300
+- JH7: 287
+- EMB314: 282
+- AG600: 278
+- SR71: 272
+- Il76: 272
+- Ka52: 256
+- JF17: 255
+- C1: 225
+- An124: 223
+- E7: 222
+- Mi28: 207
+- C390: 194
+- An72: 189
+- XB70: 177
+- Ka27: 156
+- YF23: 141
+- Tejas: 132
+- F2: 132
+- WZ7: 132
+- KF21: 122
+- Mi26: 115
+- Z19: 114
+- J35: 111
+- An225: 107
+- An22: 107
+- FCK1: 102
+- Z10: 101
+- CH53: 95
+- TB001: 92
+- KJ600: 92
+- AKINCI: 88
+- J36: 83
+- X32: 76
+- Su47: 67
+- KAAN: 60
+- B21: 59
+- MQ25: 55
+- X29: 52
+- V280: 38
+- J50: 37
+- WZ10: 20
+- WZ9: 15
+
+Unique images per class (desc):
 - F16: 1042
 - F35: 937
 - F15: 897
@@ -109,4 +223,10 @@ Unique images per class:
 - WZ10: 17
 - WZ9: 13
 
-Memory usage of labels_with_split.csv (loaded DataFrame): 9.92 MB
+Image size summary (width/height):
+- width: min=121, median=1600.0, p90=4096.0, max=8508
+- height: min=119, median=1181.0, p90=2703.0, max=7360
+
+Memory usage of DataFrame:
+- 9.92 MB
+Done.
