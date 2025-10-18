@@ -9,10 +9,6 @@ from typing import Tuple, List, Dict, Optional, Sequence
 from pathlib import Path
 import cv2
 
-
-# -----------------------------
-# Image normalization utilities
-# -----------------------------
 class ImageNormalizer:
     """
     target_size is (width, height) to match cv2.resize.
@@ -20,16 +16,14 @@ class ImageNormalizer:
     def __init__(self, target_size: Tuple[int, int] = (640, 640), do_normalize: bool = True):
         self.target_size = (int(target_size[0]), int(target_size[1]))  # (W, H)
         self.do_normalize = do_normalize
-        # RGB ImageNet stats
+
         self.imagenet_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         self.imagenet_std  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
     def resize_image(self, image: np.ndarray) -> np.ndarray:
-        # cv2 expects (width, height)
         return cv2.resize(image, self.target_size, interpolation=cv2.INTER_LINEAR)
 
     def apply_normalization(self, image: np.ndarray) -> np.ndarray:
-        # expects uint8 RGB in [0,255]
         image = image.astype(np.float32) / 255.0
         return (image - self.imagenet_mean) / self.imagenet_std
 
@@ -40,9 +34,6 @@ class ImageNormalizer:
         return image
 
 
-# -----------------------------
-# Data augmentation (box-aware)
-# -----------------------------
 class DataAugmenter:
     def __init__(self, flip_prob: float = 0.5, rotation_range: int = 15,
                  brightness_range: Tuple[float, float] = (0.8, 1.2),
@@ -58,18 +49,12 @@ class DataAugmenter:
             h, w = image.shape[:2]
             image = cv2.flip(image, 1)
             if boxes is not None and len(boxes) > 0:
-                # Using [xmin, ymin, xmax, ymax] with xmax exclusive
-                # new_xmin = w - old_xmax; new_xmax = w - old_xmin
                 boxes = boxes.copy().astype(np.float32)
                 boxes[:, [0, 2]] = w - boxes[:, [2, 0]]
         return image, boxes
 
     def rotate(self, image: np.ndarray, boxes: Optional[np.ndarray] = None
                ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-        """
-        Random in-plane rotation by angle in [-rotation_range, rotation_range].
-        Boxes are transformed by rotating their 4 corners and taking the AABB.
-        """
         angle = float(random.uniform(-self.rotation_range, self.rotation_range))
         h, w = image.shape[:2]
         center = (w / 2.0, h / 2.0)
@@ -82,7 +67,6 @@ class DataAugmenter:
         if boxes is None or len(boxes) == 0:
             return rotated_img, boxes
 
-        # Build 4 corners per box: (xmin,ymin), (xmax,ymin), (xmax,ymax), (xmin,ymax)
         boxes = boxes.astype(np.float32)
         corners = np.stack([
             boxes[:, [0, 1]],
@@ -91,7 +75,6 @@ class DataAugmenter:
             boxes[:, [0, 3]],
         ], axis=1)  # (N, 4, 2)
 
-        # Convert to homogeneous coords and apply affine
         N = corners.shape[0]
         corners_flat = corners.reshape(-1, 2)  # (N*4, 2)
         ones = np.ones((corners_flat.shape[0], 1), dtype=np.float32)
@@ -127,10 +110,6 @@ class DataAugmenter:
         image = self.adjust_contrast(image)
         return image, boxes
 
-
-# -----------------------------
-# Class balancing utilities
-# -----------------------------
 class ClassBalancer:
     def __init__(self, df: pd.DataFrame):
         self.df = df
@@ -160,10 +139,6 @@ class ClassBalancer:
                 balanced_dfs.append(group)
         return pd.concat(balanced_dfs, ignore_index=True)
 
-
-# -----------------------------
-# Box validation / clipping
-# -----------------------------
 class BoundingBoxValidator:
     """
     Assumes [xmin, ymin, xmax, ymax] with xmax/ymax being exclusive bounds,
@@ -173,17 +148,17 @@ class BoundingBoxValidator:
         boxes = boxes.copy().astype(np.float32)
         boxes[:, 0] = np.maximum(boxes[:, 0], 0)  # xmin >= 0
         boxes[:, 1] = np.maximum(boxes[:, 1], 0)  # ymin >= 0
-        # Ensure positive width/height
+
         boxes[:, 2] = np.maximum(boxes[:, 2], boxes[:, 0] + 1)
         boxes[:, 3] = np.maximum(boxes[:, 3], boxes[:, 1] + 1)
         return boxes
 
     def clip_to_image(self, boxes: np.ndarray, image_width: int, image_height: int) -> np.ndarray:
         boxes = boxes.copy().astype(np.float32)
-        # xmin/ymin in [0, w-1] / [0, h-1]
+
         boxes[:, 0] = np.clip(boxes[:, 0], 0, image_width - 1)
         boxes[:, 1] = np.clip(boxes[:, 1], 0, image_height - 1)
-        # xmax/ymax in [0, w] / [0, h] (exclusive upper bound convention)
+
         boxes[:, 2] = np.clip(boxes[:, 2], 0, image_width)
         boxes[:, 3] = np.clip(boxes[:, 3], 0, image_height)
         return boxes
@@ -195,14 +170,7 @@ class BoundingBoxValidator:
         valid_mask = (w > 0) & (h > 0) & (areas >= min_area)
         return boxes[valid_mask]
 
-
-# -----------------------------
-# Dataset preprocessing
-# -----------------------------
 class DatasetPreprocessor:
-    """
-    target_size is (width, height) to match cv2.resize.
-    """
     def __init__(self, target_size: Tuple[int, int] = (640, 640)):
         self.target_size = (int(target_size[0]), int(target_size[1]))  # (W, H)
         self.normalizer = ImageNormalizer(self.target_size, do_normalize=True)
@@ -211,30 +179,21 @@ class DatasetPreprocessor:
         self._ext_priority: Sequence[str] = ("jpg", "jpeg", "png", "webp", "bmp", "tif", "tiff")
 
     def _resolve_image_path(self, image_dir: str, filename: str) -> Path:
-        """
-        Try, in order:
-          1) exact filename (if it has an extension and exists)
-          2) <stem>.<ext> for preferred ext list (case variants)
-          3) first match <stem>.* as fallback
-        """
         base = Path(filename)
         root = Path(image_dir)
 
-        # 1) direct hit with extension
         candidate = root / filename
         if base.suffix and candidate.exists():
             return candidate
 
         stem = base.stem
 
-        # 2) try preferred extensions with case variants
         for ext in self._ext_priority:
             for variant in (ext, ext.upper(), ext.capitalize()):
                 cand = root / f"{stem}.{variant}"
                 if cand.exists():
                     return cand
 
-        # 3) fallback: any match
         matches = sorted((p for p in root.glob(f"{stem}.*") if p.is_file()))
         if matches:
             return matches[0]
@@ -243,11 +202,6 @@ class DatasetPreprocessor:
 
     def process_dataset_row(self, row: pd.Series, image_dir: str, augment: bool = False
                             ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Loads image (RGB), optionally applies box-aware augmentation,
-        resizes to target (W,H), normalizes (ImageNet), scales + validates boxes.
-        Returns: (image, boxes) with image shape (H, W, 3) if normalized float32, or same but float32.
-        """
         image_path = self._resolve_image_path(image_dir, str(row["filename"]))
 
         image_bgr = cv2.imread(str(image_path))
@@ -255,29 +209,23 @@ class DatasetPreprocessor:
             raise FileNotFoundError(f"Failed to read image at {image_path}")
         image = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
-        # Boxes for this row (single-box rows; extend to multiple as needed)
         boxes = np.array([[row['xmin'], row['ymin'], row['xmax'], row['ymax']]], dtype=np.float32)
 
-        # Augment at original resolution
         if augment:
             image, boxes = self.augmenter.augment(image, boxes)
 
-        # Validate/clip at original resolution
         h, w = image.shape[:2]
         boxes = self.bbox_validator.validate_coordinates(boxes)
         boxes = self.bbox_validator.clip_to_image(boxes, w, h)
 
-        # Resize image; scale boxes to target (W,H)
         target_w, target_h = self.target_size
         scale_x = target_w / float(w)
         scale_y = target_h / float(h)
         boxes[:, [0, 2]] *= scale_x
         boxes[:, [1, 3]] *= scale_y
 
-        # Filter tiny/invalid after scaling
         boxes = self.bbox_validator.filter_valid_boxes(boxes)
 
-        # Normalize image for model input
         image = self.normalizer.resize_image(image)
         if self.normalizer.do_normalize:
             image = self.normalizer.apply_normalization(image)
@@ -285,13 +233,7 @@ class DatasetPreprocessor:
         return image, boxes
 
 
-# -----------------------------
-# Split & stats helpers
-# -----------------------------
 def create_train_val_test_splits(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Accepts either 'validation' or 'val' for the validation split.
-    """
     split_col = 'split'
     val_mask = df[split_col].astype(str).str.lower().isin(['validation', 'val'])
     train_df = df[df[split_col] == 'train'].copy()
@@ -304,9 +246,98 @@ def calculate_class_distribution(df: pd.DataFrame) -> Dict[str, int]:
     return df['class'].value_counts().to_dict()
 
 
-# -----------------------------
-# Main
-# -----------------------------
+def _denorm_to_uint8_rgb(img: np.ndarray, normalizer: ImageNormalizer) -> np.ndarray:
+    """
+    Convert a possibly ImageNet-normalized float32 RGB image to uint8 RGB for display.
+    """
+    out = img
+    if out.dtype != np.uint8:
+        if normalizer.do_normalize:
+            out = (out * normalizer.imagenet_std) + normalizer.imagenet_mean
+        out = np.clip(out, 0.0, 1.0)
+        out = (out * 255.0).round().astype(np.uint8)
+    return out
+
+
+def _draw_boxes_bgr(img_bgr: np.ndarray, boxes: Optional[np.ndarray], color=(0, 255, 0), thickness: int = 2) -> np.ndarray:
+    if boxes is not None and boxes.size:
+        for (x1, y1, x2, y2) in boxes.astype(int):
+            cv2.rectangle(img_bgr, (x1, y1), (x2, y2), color, thickness)
+    return img_bgr
+
+
+def show_processed_samples(
+    preprocessor: DatasetPreprocessor,
+    df: pd.DataFrame,
+    image_dir: str,
+    num: int = 4,
+    augment: bool = True,
+    delay_ms: int = 0,
+    save_dir: Optional[str] = None,
+    show_original: bool = True,
+    seed: Optional[int] = None,         
+    unique_by: Optional[str] = 'filename'
+) -> None:
+    if len(df) == 0:
+        print("show_processed_samples: dataframe is empty.")
+        return
+
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+
+    pool = df.drop_duplicates(unique_by) if unique_by else df
+
+    rows = pool.sample(n=min(num, len(pool)), random_state=None)
+
+    idx = 0
+    for _, row in rows.iterrows():
+        idx += 1
+
+        orig_bgr = None
+        orig_boxes_clipped = None
+        if show_original:
+            image_path = preprocessor._resolve_image_path(image_dir, str(row["filename"]))
+            orig_bgr = cv2.imread(str(image_path))
+            if orig_bgr is None:
+                print(f"Could not read original image: {image_path}")
+            else:
+                h0, w0 = orig_bgr.shape[:2]
+                # Original boxes from row; clip for safety
+                orig_boxes = np.array([[row['xmin'], row['ymin'], row['xmax'], row['ymax']]], dtype=np.float32)
+                orig_boxes = preprocessor.bbox_validator.validate_coordinates(orig_boxes)
+                orig_boxes_clipped = preprocessor.bbox_validator.clip_to_image(orig_boxes, w0, h0)
+
+        proc_img, proc_boxes = preprocessor.process_dataset_row(row, image_dir, augment=augment)
+        vis_rgb = _denorm_to_uint8_rgb(proc_img, preprocessor.normalizer)
+        proc_bgr = cv2.cvtColor(vis_rgb, cv2.COLOR_RGB2BGR)
+        proc_bgr = _draw_boxes_bgr(proc_bgr, proc_boxes, color=(0, 255, 0), thickness=2)
+
+        cls = str(row.get('class', ''))
+        proc_title = f"processed_{idx}_{cls}"
+        cv2.namedWindow(proc_title, cv2.WINDOW_AUTOSIZE)
+        cv2.imshow(proc_title, proc_bgr)
+
+        if show_original and orig_bgr is not None:
+            orig_bgr_draw = orig_bgr.copy()
+            orig_bgr_draw = _draw_boxes_bgr(orig_bgr_draw, orig_boxes_clipped, color=(255, 0, 0), thickness=2)
+            orig_title = f"original_{idx}_{cls}"
+            cv2.namedWindow(orig_title, cv2.WINDOW_AUTOSIZE)
+            cv2.imshow(orig_title, orig_bgr_draw)
+
+        if save_dir:
+            Path(save_dir).mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(Path(save_dir) / f"{proc_title}.jpg"), proc_bgr)
+            if show_original and orig_bgr is not None:
+                cv2.imwrite(str(Path(save_dir) / f"original_{idx}_{cls}.jpg"), orig_bgr_draw)
+
+        key = cv2.waitKey(delay_ms if delay_ms > 0 else 0)
+        if key == 27:  # ESC
+            break
+
+    cv2.destroyAllWindows()
+
+
 def main():
     csv_path = "aircraft_dataset/labels_with_split.csv"
     image_dir = "aircraft_dataset/dataset"
@@ -349,6 +380,19 @@ def main():
         least_cls = min(class_dist, key=class_dist.get)
         print(f"Most common class: {most_cls} ({class_dist[most_cls]} samples)")
         print(f"Least common class: {least_cls} ({class_dist[least_cls]} samples)")
+
+    try:
+        show_processed_samples(
+            preprocessor,
+            train_df,
+            image_dir,
+            num=2,          # how many images to preview
+            augment=True,   # show with augmentation applied
+            delay_ms=0,     # 0 = wait for keypress per image
+            save_dir=None   # e.g., "debug_previews" to also save .jpgs
+        )
+    except Exception as e:
+        print(f"Preview error: {e}")
 
 
 if __name__ == "__main__":
