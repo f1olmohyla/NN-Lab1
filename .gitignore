@@ -1,3 +1,4 @@
 aircraft_dataset/
 .idea/
+.venv/
 *.zip
