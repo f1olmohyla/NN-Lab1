@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -30,6 +30,8 @@ def _resolve_image_path(stem: str, dataset_dir: Path) -> Optional[Path]:
 def load_aircraft_dataset(
     dataset_dir: Optional[str | Path] = None,
     allowed_classes: Optional[Sequence[str]] = None,
+    area_range: Optional[Tuple[float, float]] = None,
+    allow_multiple_annotations: bool = True,
 ) -> pd.DataFrame:
     """Load all annotations in the aircraft dataset directory into a DataFrame.
 
@@ -41,6 +43,12 @@ def load_aircraft_dataset(
     allowed_classes
         Optional iterable of class names to keep. When provided, any annotations whose
         `class` value is not in this collection are dropped from the resulting DataFrame.
+    area_range
+        Optional tuple (min_ratio, max_ratio) specifying the inclusive range of bounding-box
+        areas relative to the full image (0.0–1.0). Boxes outside this range are removed.
+    allow_multiple_annotations
+        If False, only images with a single remaining annotation are retained. When True,
+        all images are kept regardless of how many annotations they contain.
 
     Returns
     -------
@@ -64,6 +72,14 @@ def load_aircraft_dataset(
     if allowed_classes is not None:
         allowed_class_set = {str(cls_name) for cls_name in allowed_classes}
 
+    area_min, area_max = None, None
+    if area_range is not None:
+        if len(area_range) != 2:
+            raise ValueError("area_range must be a tuple of (min_ratio, max_ratio).")
+        area_min, area_max = area_range
+        if not (0.0 <= area_min <= 1.0 and 0.0 <= area_max <= 1.0 and area_min <= area_max):
+            raise ValueError("area_range values must satisfy 0.0 <= min <= max <= 1.0.")
+
     csv_files = sorted(dataset_directory.glob("*.csv"))
 
     rows: list[pd.DataFrame] = []
@@ -83,6 +99,15 @@ def load_aircraft_dataset(
 
         if allowed_class_set is not None:
             annotation_frame = annotation_frame[annotation_frame["class"].isin(allowed_class_set)]
+            if annotation_frame.empty:
+                continue
+
+        if area_min is not None and area_max is not None:
+            widths = (annotation_frame["xmax"] - annotation_frame["xmin"]).clip(lower=0)
+            heights = (annotation_frame["ymax"] - annotation_frame["ymin"]).clip(lower=0)
+            image_area = (annotation_frame["width"] * annotation_frame["height"]).replace(0, pd.NA)
+            bbox_area_ratio = (widths * heights) / image_area
+            annotation_frame = annotation_frame[(bbox_area_ratio >= area_min) & (bbox_area_ratio <= area_max)]
             if annotation_frame.empty:
                 continue
 
@@ -112,9 +137,17 @@ def load_aircraft_dataset(
             ]
         )
 
+    if not allow_multiple_annotations and not dataset.empty:
+        counts = dataset["filename"].value_counts()
+        singletons = counts[counts == 1].index
+        dataset = dataset[dataset["filename"].isin(singletons)].reset_index(drop=True)
+
     dataset.attrs["dataset_dir"] = dataset_directory.as_posix()
     if allowed_class_set is not None:
         dataset.attrs["allowed_classes"] = sorted(allowed_class_set)
+    if area_range is not None:
+        dataset.attrs["area_range"] = area_range
+    dataset.attrs["allow_multiple_annotations"] = allow_multiple_annotations
     return dataset
 
 
